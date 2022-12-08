@@ -1,0 +1,479 @@
+const { Op } = require("sequelize");
+const { Car, UserCar } = require("../models");
+const { CarAlreadyRentedError } = require("../errors");
+const { Op } = require("sequelize");
+const CarController = require("./CarController");
+
+describe("CarController", () => {
+  describe("#constructor", () => {
+    it("should set the car model", () => {
+      const carModel = {};
+      const userCarModel = {};
+      const dayjs = {};
+      const controller = new CarController({ carModel, userCarModel, dayjs });
+
+      expect(controller.carModel).toBe(carModel);
+    });
+  });
+
+  describe("#handleListCars", () => {
+    it("should res.status(200) and return cars list and meta object", async () => {
+      const car = new Car([
+        {
+          name: "Ford F150",
+          price: 200000,
+          size: "Small",
+          image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+          isCurrentlyRented: false,
+          createdAt: "2022-11-1 09:44:35",
+          updatedAt: "2022-11-1 11:00:00",
+        },
+      ]);
+
+      const cars = [];
+
+      cars.push(car);
+
+      const mockCarModel = {
+        findAll: jest.fn().mockReturnValue(cars),
+        count: jest.fn().mockReturnValue(5),
+      };
+
+      const mockUserCar = new UserCar({
+        userId: 1,
+        carId: 1,
+      });
+
+      const carController = new CarController({
+        carModel: mockCarModel,
+        userCarModel: mockUserCar,
+      });
+
+      const mockRequest = {
+        query: {},
+      };
+
+      const mockResponse = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      await carController.handleListCars(mockRequest, mockResponse);
+
+      expect(mockCarModel.findAll).toHaveBeenCalled();
+      expect(mockCarModel.count).toHaveBeenCalled();
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        cars,
+        meta: {
+          pagination: {
+            page: 1,
+            pageCount: 1,
+            pageSize: 10,
+            count: 5,
+          },
+        },
+      });
+    });
+  });
+
+  describe("#handleGetCar", () => {
+    it("should res.status(200) and return car data", async () => {
+      const mockCar = new Car({
+        name: "Ford F150",
+        price: 200000,
+        size: "Small",
+        image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+        isCurrentlyRented: false,
+        createdAt: "2022-11-1 09:44:35",
+        updatedAt: "2022-11-1 11:00:00",
+      });
+
+      const mockCarModel = {
+        findByPk: jest.fn().mockReturnValue(mockCar),
+      };
+
+      const mockUserCar = new UserCar({
+        userId: 1,
+        carId: 1,
+        rentStartedAt: "2022-11-4 11:00:00",
+        rentEndedAt: "2022-11-5 11:00:00",
+        createdAt: "2022-11-1 11:00:00",
+        updatedAt: "2022-11-2 11:00:00",
+      });
+
+      const mockRequest = {
+        params: {
+          id: 1,
+        },
+      };
+      const mockResponse = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      const carController = new CarController({
+        carModel: mockCarModel,
+        userCarModel: mockUserCar,
+      });
+
+      await carController.handleGetCar(mockRequest, mockResponse);
+
+      expect(mockCarModel.findByPk).toHaveBeenCalledWith(mockRequest.params.id);
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith(mockCar);
+    });
+  });
+
+  describe("#handleCreateCar", () => {
+    it("should res.status(201) and return created car on success", async () => {
+      const mockCar = new Car({
+        name: "Ford F150",
+        price: 200000,
+        size: "Small",
+        image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+        isCurrentlyRented: false,
+        createdAt: "2022-11-1 09:44:35",
+        updatedAt: "2022-11-1 11:00:00",
+      });
+
+      const mockCarModel = {
+        create: jest.fn().mockReturnValue(mockCar),
+      };
+
+      const mockRequest = {
+        body: {
+          name: "Ford F150",
+          price: 200000,
+          size: "Small",
+          image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+          isCurrentlyRented: false,
+        },
+      };
+      const mockResponse = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      const carController = new CarController({
+        carModel: mockCarModel,
+      });
+
+      await carController.handleCreateCar(mockRequest, mockResponse);
+
+      expect(mockCarModel.create).toHaveBeenCalledWith(mockRequest.body);
+      expect(mockResponse.status).toHaveBeenCalledWith(201);
+      expect(mockResponse.json).toHaveBeenCalledWith(mockCar);
+    });
+
+    it("should call res.status(422) and res.Json with status and message", async () => {
+      const mockCarModel = {
+        create: jest.fn().mockImplementation(() => {
+          throw new Error("error");
+        }),
+      };
+
+      const mockRequest = {
+        body: {
+          name: "Ford F150",
+          price: 200000,
+          size: "Small",
+          image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+          isCurrentlyRented: false,
+        },
+      };
+      const mockResponse = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      const carController = new CarController({
+        carModel: mockCarModel,
+      });
+
+      await carController.handleCreateCar(mockRequest, mockResponse);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        error: {
+          name: expect.any(String),
+          message: expect.any(String),
+        },
+      });
+    });
+  });
+
+  describe("handleRentCar", () => {
+    it("'should res.status(201) and return userCar object on success", async () => {
+      const mockCar = new Car({
+        name: "Ford F150",
+        price: 200000,
+        size: "Small",
+        image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+        isCurrentlyRented: false,
+        createdAt: "2022-11-1 09:44:35",
+        updatedAt: "2022-11-1 11:00:00",
+      });
+
+      const mockUserCar = new UserCar({
+        userId: 5,
+        carId: 1,
+        rentStartedAt: "2022-11-1 09:44:35",
+        rentEndedAt: "2022-11-2 09:44:35",
+      });
+
+      const mockCarModel = {
+        findByPk: jest.fn().mockReturnValue(mockCar),
+      };
+
+      const mockUserCarModel = {
+        findOne: jest.fn().mockReturnValue(null),
+        create: jest.fn().mockReturnValue({
+          userId: mockUserCar.userId,
+          carId: mockUserCar.carId,
+          rentStartedAt: mockUserCar.rentStartedAt,
+          rentEndedAt: mockUserCar.rentEndedAt,
+        }),
+      };
+
+      const mockRequest = {
+        body: {
+          rentStartedAt: "2022-11-1 09:44:35",
+          rentEndedAt: "2022-11-2 09:44:35",
+        },
+        params: {
+          id: 1,
+        },
+        user: {
+          id: 5,
+        },
+      };
+
+      const mockResponse = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      const mockNext = jest.fn();
+
+      const carController = new CarController({
+        carModel: mockCarModel,
+        userCarModel: mockUserCarModel,
+      });
+
+      await carController.handleRentCar(mockRequest, mockResponse, mockNext);
+
+      expect(mockCarModel.findByPk).toHaveBeenCalledWith(mockRequest.params.id);
+      expect(mockUserCarModel.findOne).toHaveBeenCalledWith({
+        where: {
+          carId: mockCar.id,
+          rentStartedAt: {
+            [Op.gte]: mockRequest.body.rentStartedAt,
+          },
+          rentEndedAt: {
+            [Op.lte]: mockRequest.body.rentEndedAt,
+          },
+        },
+      });
+      expect(mockUserCarModel.create).toHaveBeenCalledWith({
+        userId: mockRequest.user.id,
+        carId: mockCar.id,
+        rentStartedAt: mockRequest.body.rentStartedAt,
+        rentEndedAt: mockRequest.body.rentEndedAt,
+      });
+    });
+  });
+
+  describe("handleUpdateCar", () => {
+    it("should res.status(200) and return updated car on success", async () => {
+      const defaultMockCar = {
+        id: 1,
+        name: "Ford F150",
+        price: 200000,
+        size: "Small",
+        image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+        isCurrentlyRented: false,
+        createdAt: "2022-11-1 09:44:35",
+        updatedAt: "2022-11-2 11:00:00",
+      };
+
+      const mockCarReq = {
+        name: "Ford F150",
+        price: 200000,
+        size: "Small",
+        image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+        isCurrentlyRented: false,
+      };
+      const mockReq = {
+        body: mockCarReq,
+        params: {
+          id: 1,
+        },
+      };
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      const mockCarModel = {
+        findByPk: jest.fn().mockReturnValue(defaultMockCar),
+        update: jest.fn().mockReturnThis(),
+      };
+      const mockUserCarModel = {};
+
+      const controller = new CarController({
+        carModel: mockCarModel,
+        userCarModel: mockUserCarModel,
+      });
+
+      await controller.handleUpdateCar(mockReq, mockRes);
+
+      expect(mockCarModel.findByPk).toHaveBeenCalled();
+      expect(mockCarModel.update).toHaveBeenCalledWith(mockCarReq, {
+        where: { id: mockReq.params.id },
+      });
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+    });
+
+    it("should return error 422", async () => {
+      const mockCarModel = {
+        update: jest.fn().mockImplementation(() => {
+          throw new Error("error");
+        }),
+      };
+
+      const mockRequest = {
+        params: {
+          id: 1,
+        },
+        body: {
+          name: "Ford F150",
+          price: 200000,
+          size: "Small",
+          image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+          isCurrentlyRented: false,
+        },
+      };
+
+      const mockResponse = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+      };
+
+      const carController = new CarController({
+        carModel: mockCarModel,
+      });
+
+      await carController.handleUpdateCar(mockRequest, mockResponse);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(422);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        error: {
+          name: expect.any(String),
+          message: expect.any(String),
+        },
+      });
+    });
+  });
+
+  describe("#handleDeleteCar", () => {
+    it("should res.status(204) on delete success", async () => {
+      const mockCar = new Car({
+        id: 1,
+        name: "Ford F150",
+        price: 200000,
+        size: "Small",
+        image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+        isCurrentlyRented: false,
+        createdAt: "2022-11-1 09:44:35",
+        updatedAt: "2022-11-2 11:00:00",
+      });
+
+      const mockRequest = {
+        params: {
+          id: 1,
+        },
+      };
+
+      const mockResponse = {
+        status: jest.fn().mockReturnValue({
+          end: jest.fn(),
+        }),
+      };
+
+      const mockDestroy = jest.fn().mockReturnValue(1);
+      const mockCarModel = {
+        findByPk: jest.fn().mockReturnValue({
+          ...mockCar,
+          destroy: mockDestroy,
+        }),
+      };
+
+      const controller = new CarController({
+        carModel: mockCarModel,
+        userCarModel: {},
+      });
+      await controller.handleDeleteCar(mockRequest, mockResponse);
+
+      expect(mockDestroy).toHaveBeenCalled();
+      expect(mockResponse.status).toHaveBeenCalledWith(204);
+    });
+
+    it("should res.status(404) ", async () => {
+      const mockRequest = {
+        params: {
+          id: 1,
+        },
+      };
+      const mockResponse = {
+        status: jest.fn().mockReturnValue({
+          end: jest.fn(),
+        }),
+      };
+      const mockCarModel = {
+        findByPk: jest.fn().mockReturnValue(false),
+      };
+      const controller = new CarController({
+        carModel: mockCarModel,
+        userCarModel: {},
+      });
+      await controller.handleDeleteCar(mockRequest, mockResponse);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+    });
+  });
+
+  describe("getCarFromRequest", () => {
+    it("should return car object from request param id", () => {
+      const mockCar = new Car({
+        id: 1,
+        name: "Ford F150",
+        price: "100000",
+        size: "Small",
+        image: "https://res.cloudinary.com/dxqs0ygih/image/upload/v1665542663/cars/car01.min_hml1xf.jpg",
+
+        isCurrentlyRented: false,
+        createdAt: "2022-11-1 11:00:00",
+        updatedAt: "2022-11-2 11:00:00",
+      });
+
+      mockCarModel = {
+        findByPk: jest.fn().mockReturnValue(mockCar),
+      };
+
+      const mockRequest = {
+        params: {
+          id: 1,
+        },
+      };
+
+      const carController = new CarController({
+        carModel: mockCarModel,
+      });
+
+      const car = carController.getCarFromRequest(mockRequest);
+
+      expect(car).toEqual(mockCar);
+    });
+  });
+});
