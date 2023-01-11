@@ -23,7 +23,7 @@ run this command to setup database with sequelize, Remember to setup `database` 
     
 run this command to start express server in development mode:
 
-    npm run dev
+    npm run start
 
 To run both unit and integration tests, use this command:
 
